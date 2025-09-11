@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"image/color"
 	"math/rand"
@@ -194,7 +195,7 @@ func initialModel() model {
 var (
 	blends          = gamut.Blends(lipgloss.Color("#F25D94"), lipgloss.Color("#EDFF82"), 50)
 	correctBlends   = gamut.Blends(lipgloss.Color("#FF5F87"), lipgloss.Color("#874BFD"), 50)
-	incorrectBlends = gamut.Blends(lipgloss.Color("#fb9700"), lipgloss.Color("#EDFF82"), 50)
+	incorrectBlends = gamut.Blends(lipgloss.Color("#1ac500"), lipgloss.Color("#3b9be9"), 50)
 
 	titleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Underline(true).AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center)
 	questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("33")).Bold(true)
@@ -202,32 +203,6 @@ var (
 	splashStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true).Background(lipgloss.Color("57")).Padding(1, 2)
 	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
 )
-
-// --- Helpers ---
-// func makeProblem(m model) problem {
-// 	switch m.mode {
-// 	case modeAdd:
-// 		max := pow10(m.digits)
-// 		a, b := rand.Intn(max), rand.Intn(max)
-// 		return problem{question: fmt.Sprintf("%d + %d", a, b), answer: a + b}
-// 	case modeSub:
-// 		max := pow10(m.digits)
-// 		a, b := rand.Intn(max), rand.Intn(max)
-// 		if a < b {
-// 			a, b = b, a
-// 		}
-// 		return problem{question: fmt.Sprintf("%d - %d", a, b), answer: a - b}
-// 	case modeMul:
-// 		return m.probs.Random()
-// 		// x := m.table
-// 		// if x == 0 {
-// 		// 	x = rand.Intn(10) + 1
-// 		// }
-// 		// y := rand.Intn(10) + 1
-// 		// return problem{fmt.Sprintf("%d x %d", x, y), x * y}
-// 	}
-// 	return problem{}
-// }
 
 func pow10(n int) int {
 	out := 1
@@ -237,7 +212,6 @@ func pow10(n int) int {
 	return out
 }
 
-// --- Update ---
 func (m model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, tea.Tick(time.Second*3, func(time.Time) tea.Msg { return "next" }))
 }
@@ -359,13 +333,63 @@ func (m model) View() string {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	m := parseFlags(initialModel())
+	if m.mode == modeNone {
+		m = runNewGameForm(m)
+	}
 
-	p := tea.NewProgram(runNewGameForm(initialModel()), tea.WithAltScreen())
+	switch m.mode {
+	case modeMul:
+		m.probs = NewMulProblems(m.table)
+	case modeAdd:
+		m.probs = NewAddProblems(m.digits)
+	case modeSub:
+		m.probs = NewSubProblems(m.digits)
+	default:
+		panic("forgot to implment problems for new game mode")
+	}
+
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
+}
+
+func parseFlags(m model) model {
+	opts := struct {
+		Player string
+		Digits int
+		Table  int
+		Mode   int
+	}{}
+	flag.StringVar(&opts.Player, "player", "", "Player name")
+	flag.IntVar(&opts.Mode, "mode", 0, fmt.Sprintf("Game mode, add=%d, sub=%d, and mul=%d", modeAdd, modeSub, modeMul))
+	flag.IntVar(&opts.Digits, "digits", 0, "For sub/add, max number of digits to use")
+	flag.IntVar(&opts.Table, "table", 0, "For mul, multiplication table to practice, or zero for all")
+	flag.Parse()
+
+	if opts.Mode <= 0 || opts.Mode > 3 || opts.Player == "" {
+		return m
+	}
+	m.mode = mode(opts.Mode)
+	m.player = opts.Player
+	m.digits = opts.Digits
+	m.table = opts.Table
+
+	if m.table < 0 {
+		m.table = 1
+	}
+	if m.table > mathTableEnd {
+		m.table = mathTableEnd
+	}
+	if m.digits < 1 {
+		m.table = 1
+	}
+	if m.digits > 3 {
+		m.digits = 3
+	}
+	return m
 }
 
 func runNewGameForm(m model) model {
@@ -433,14 +457,8 @@ func runNewGameForm(m model) model {
 	// Save modeOpt to model
 	if m.mode == modeMul {
 		m.table = num
-		m.probs = NewMulProblems(m.table)
 	} else {
 		m.digits = num
-		if m.mode == modeAdd {
-			m.probs = NewAddProblems(m.digits)
-		} else {
-			m.probs = NewSubProblems(m.digits)
-		}
 	}
 	// fmt.Println("ADD")
 	// for _, p := range NewAddProblems(1) {
