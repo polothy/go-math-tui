@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"image/color"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	// "github.com/NimbleMarkets/ntcharts"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -52,6 +52,7 @@ type screen int
 const (
 	screenSplash screen = iota
 	screenPlay
+	screenLevelUp
 	screenEnd
 )
 
@@ -158,16 +159,20 @@ func (p problems) IndexOf(a problem) int {
 }
 
 type model struct {
-	screen   screen
-	mode     mode
-	player   string
-	digits   int
-	table    int
-	input    textinput.Model
-	feedback string
-	prob     problem
-	probs    problems
-	coach    string
+	screen      screen
+	mode        mode
+	player      string
+	digits      int
+	table       int
+	input       textinput.Model
+	feedback    string
+	prob        problem
+	probs       problems
+	coach       string
+	level       int
+	levelBar    progress.Model
+	windowWidth int
+	splashWait  int
 
 	// Stats
 	totalRight int
@@ -184,10 +189,13 @@ func initialModel() model {
 	ti.Width = 20
 
 	return model{
-		screen:   screenSplash,
-		input:    ti,
-		rightMap: make(map[string]int),
-		wrongMap: make(map[string]int),
+		screen:     screenSplash,
+		splashWait: 3,
+		level:      1,
+		levelBar:   progress.New(progress.WithDefaultGradient(), progress.WithSpringOptions(15, 0.5), progress.WithoutPercentage()),
+		input:      ti,
+		rightMap:   make(map[string]int),
+		wrongMap:   make(map[string]int),
 	}
 }
 
@@ -198,29 +206,37 @@ var (
 	incorrectBlends = gamut.Blends(lipgloss.Color("#1ac500"), lipgloss.Color("#3b9be9"), 50)
 
 	titleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Underline(true).AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center)
-	questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("33")).Bold(true)
+	questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F25D94")).Bold(true)
 	feedbackStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 	splashStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true).Background(lipgloss.Color("57")).Padding(1, 2)
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Faint(true)
 )
 
 func pow10(n int) int {
 	out := 1
-	for i := 0; i < n; i++ {
+	for range n {
 		out *= 10
 	}
 	return out
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, tea.Tick(time.Second*3, func(time.Time) tea.Msg { return "next" }))
+	var nextCmd tea.Cmd
+	if m.splashWait > 0 {
+		nextCmd = tea.Tick(time.Second*3, func(time.Time) tea.Msg { return "next" })
+	} else {
+		nextCmd = func() tea.Msg { return "next" }
+	}
+	return tea.Batch(textinput.Blink, nextCmd)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c":
+			return m, tea.Quit
+		case "esc":
 			m.screen = screenEnd
 			return m, tea.Tick(time.Second*3, func(time.Time) tea.Msg { return tea.Quit() })
 		}
@@ -228,6 +244,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenPlay:
 			switch msg.Type {
 			case tea.KeyEnter:
+				var cmds []tea.Cmd
 				val := strings.TrimSpace(m.input.Value())
 				if val == "" {
 					return m, nil
@@ -250,7 +267,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.rightMap[m.prob.question]++
 						m.prob.correct++
 
-						if m.totalRight%3 == 0 {
+						per := float64(m.totalRight%3) / float64(3)
+						if per == 0 {
+							per = 1 // Want to show bar as full when they level up!
+						}
+						level := (m.totalRight / 3) + 1 // Add one because we start at 1
+						if level > m.level {
+							// After level up, get a new coach!
 							for range 100 {
 								newCoach := cowfiles[rand.Intn(len(cowfiles))]
 								if m.coach != newCoach {
@@ -258,9 +281,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									break
 								}
 							}
+							m.level = level
+							m.screen = screenLevelUp
+							cmds = append(cmds, tea.Tick(time.Second*4, func(time.Time) tea.Msg { return "next" }))
 						}
-
+						cmds = append(cmds, m.levelBar.SetPercent(per))
 						m.feedback = rainbow(lipgloss.NewStyle(), feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
+						// m.feedback = Lolcatize(feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)))
 					} else {
 						m.feedback = rainbow(lipgloss.NewStyle(), feedbackCoach(m.coach, fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
 						m.totalWrong++
@@ -271,12 +298,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if i := m.probs.IndexOf(m.prob); i >= 0 {
 						m.probs[i] = m.prob
 					}
-					// m.prob = makeProblem(m)
 					m.prob = m.probs.Random()
 				} else {
 					m.feedback = "Please enter a number!"
 				}
-				return m, nil
+				var cmd tea.Cmd
+				if len(cmds) > 0 {
+					cmd = tea.Batch(cmds...)
+				}
+				return m, cmd
 			default:
 				var cmd tea.Cmd
 				m.input, cmd = m.input.Update(msg)
@@ -288,14 +318,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenSplash:
 			if msg == "next" {
 				m.screen = screenPlay
-				// m.prob = makeProblem(m)
 				m.prob = m.probs.Random()
 				m.input.SetValue("")
 				m.input.Placeholder = "Your answer"
 				m.input.Focus()
 				return m, nil
 			}
+		case screenLevelUp:
+			if msg == "next" {
+				m.screen = screenPlay
+				return m, m.levelBar.SetPercent(0) // Reset level up bar
+			}
 		}
+	case tea.WindowSizeMsg:
+		padding := 7
+		m.levelBar.Width = msg.Width - padding*2 - 4
+		m.windowWidth = msg.Width
+		return m, nil
+	case progress.FrameMsg: // FrameMsg is sent when the progress bar wants to animate itself
+		progressModel, cmd := m.levelBar.Update(msg)
+		m.levelBar = progressModel.(progress.Model)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -304,17 +347,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	switch m.screen {
 	case screenSplash:
-		return funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game \uee80", m.player))
+		return funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game \uee80", m.player), m.windowWidth)
 	case screenPlay:
-		return questionStyle.Render(fmt.Sprintf("Question: %s = ?", m.prob.question)) +
+		return "\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.question), blends) +
 			"\n\n" + m.input.View() +
-			"\n\n" + m.feedback +
-			"\n\n\n" + dimStyle.Render("press esc key to stop playing")
+			"\n\n" + lipgloss.PlaceHorizontal(m.windowWidth, lipgloss.Center, lipgloss.NewStyle().Align(lipgloss.Left).Render(m.feedback)) +
+			"\n\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View() +
+			"\n\n\n" + dimStyle.Render("Psst, press the esc key to stop playing.")
+
+	case screenLevelUp:
+		l := `
+ _                    _   _    _       _ 
+| |                  | | | |  | |     | |
+| |     _____   _____| | | |  | |_ __ | |
+| |    / _ \ \ / / _ \ | | |  | | '_ \| |
+| |___|  __/\ V /  __/ | | |__| | |_) |_|
+|______\___| \_/ \___|_|  \____/| .__/(_)
+                                | |      
+                                |_|      
+`
+		return "\n\n" + lipgloss.PlaceHorizontal(m.windowWidth-20, lipgloss.Center, lipgloss.NewStyle().Align(lipgloss.Left).Render(Lolcatize(l))) +
+			"\n\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View()
+
 	case screenEnd:
 		var out string
 		// out = testStyle.Render(fmt.Sprintf("Thanks for playing, %s!\n", m.player))
 		// out = rainbow(lipgloss.NewStyle(), fmt.Sprintf("Thanks for playing, %s!\n", m.player), blends)
-		out = funMessage(fmt.Sprintf("Thanks for playing, %s!\n", m.player))
+		out = funMessage(fmt.Sprintf("Thanks for playing, %s!\n", m.player), m.windowWidth)
 		// out += fmt.Sprintf("You got %d right and %d wrong.\n\n", m.totalRight, m.totalWrong)
 		// if m.mode == modeMul {
 		// 	data := []ntcharts.BarDatum{}
@@ -362,11 +421,13 @@ func parseFlags(m model) model {
 		Digits int
 		Table  int
 		Mode   int
+		Quick  bool
 	}{}
 	flag.StringVar(&opts.Player, "player", "", "Player name")
 	flag.IntVar(&opts.Mode, "mode", 0, fmt.Sprintf("Game mode, add=%d, sub=%d, and mul=%d", modeAdd, modeSub, modeMul))
 	flag.IntVar(&opts.Digits, "digits", 0, "For sub/add, max number of digits to use")
 	flag.IntVar(&opts.Table, "table", 0, "For mul, multiplication table to practice, or zero for all")
+	flag.BoolVar(&opts.Quick, "quick", false, "Quickly start")
 	flag.Parse()
 
 	if opts.Mode <= 0 || opts.Mode > 3 || opts.Player == "" {
@@ -388,6 +449,9 @@ func parseFlags(m model) model {
 	}
 	if m.digits > 3 {
 		m.digits = 3
+	}
+	if opts.Quick {
+		m.splashWait = 0
 	}
 	return m
 }
@@ -489,7 +553,7 @@ func rainbow(base lipgloss.Style, s string, colors []color.Color) string {
 	return str
 }
 
-func funMessage(message string) string {
+func funMessage(message string, windowWidth int) string {
 	dialogBoxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#874BFD")).
@@ -501,7 +565,7 @@ func funMessage(message string) string {
 
 	question := lipgloss.NewStyle().Width(50).Align(lipgloss.Center).Render(rainbow(lipgloss.NewStyle(), message, blends))
 
-	return lipgloss.Place(90, 9,
+	return lipgloss.Place(windowWidth, 9,
 		lipgloss.Center, lipgloss.Center,
 		dialogBoxStyle.Render(question),
 	)
@@ -520,31 +584,83 @@ func feedbackCoach(coach, message string) string {
 	return string(o)
 }
 
-func lolcat(a string) string {
-	// The base rainbow color scheme. The values are HSL-like.
-	var colors = []lipgloss.Color{
-		lipgloss.Color("#FF0000"), // Red
-		lipgloss.Color("#FF7F00"), // Orange
-		lipgloss.Color("#FFFF00"), // Yellow
-		lipgloss.Color("#00FF00"), // Green
-		lipgloss.Color("#0000FF"), // Blue
-		lipgloss.Color("#4B0082"), // Indigo
-		lipgloss.Color("#9400D3"), // Violet
+// --- AI generated ---
+
+// Lolcatize is the simple entry point with sensible defaults.
+// It returns the coloured string (does not print).
+func Lolcatize(s string) string {
+	// defaults tuned to match classic lolcat appearance
+	return LolcatizeWithConfig(s, spreadDefault, freqDefault, 0.0, true)
+}
+
+// Configurable values (tweak to taste)
+const (
+	spreadDefault = 3.0 // how "wide" the rainbow is (characters per hue sweep)
+	freqDefault   = 0.3 // frequency multiplier (bigger -> faster color changes)
+)
+
+const twoPI = 2 * math.Pi
+
+// LolcatizeWithConfig colorizes the string s and returns it.
+// Parameters:
+//   - spread: larger -> slower color change across characters (suggest 1.5..6.0)
+//   - freq: frequency multiplier, typical ~0.2..0.6
+//   - seed: phase offset (useful to shift the rainbow)
+//   - resetPerLine: if true each newline resets the gradient so each line starts fresh
+func LolcatizeWithConfig(s string, spread, freq, seed float64, resetPerLine bool) string {
+	if spread <= 0 {
+		spread = spreadDefault
 	}
-	scanner := bufio.NewScanner(bytes.NewBufferString(a))
+	if freq <= 0 {
+		freq = freqDefault
+	}
 
-	colorCount := len(colors)
-	colorIndex := 0
+	var out strings.Builder
+	idx := 0 // index used for color progression (resets per-line when requested)
 
-	b := strings.Builder{}
-	for scanner.Scan() {
-		line := scanner.Text()
-		for _, r := range line {
-			style := lipgloss.NewStyle().Foreground(colors[colorIndex%colorCount])
-			b.WriteString(style.Render(string(r)))
-			colorIndex++
+	// Helper that clamps and rounds a float to [0..255]
+	clampByte := func(v float64) int {
+		if v < 0 {
+			return 0
 		}
-		b.WriteString("\n")
+		if v > 255 {
+			return 255
+		}
+		return int(math.Round(v))
 	}
-	return b.String()
+
+	for _, r := range s {
+		if r == '\n' {
+			_, _ = out.WriteRune(r)
+			if resetPerLine {
+				idx = 0
+			} else {
+				idx++
+			}
+			continue
+		}
+
+		// Classic lolcat-style RGB waves:
+		//   rad = seed + idx/spread * freq * 2π
+		//   r = sin(rad + 0) * 127 + 128
+		//   g = sin(rad + 2π/3) * 127 + 128
+		//   b = sin(rad + 4π/3) * 127 + 128
+		rad := seed + (float64(idx)/spread)*freq*twoPI
+
+		red := math.Sin(rad)*127.0 + 128.0
+		green := math.Sin(rad+twoPI/3.0)*127.0 + 128.0
+		blue := math.Sin(rad+2.0*twoPI/3.0)*127.0 + 128.0
+
+		ri := clampByte(red)
+		gi := clampByte(green)
+		bi := clampByte(blue)
+
+		hex := fmt.Sprintf("#%02x%02x%02x", ri, gi, bi)
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(hex))
+		out.WriteString(style.Render(string(r)))
+
+		idx++
+	}
+
+	return out.String()
 }
