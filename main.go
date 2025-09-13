@@ -8,12 +8,12 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	// "github.com/NimbleMarkets/ntcharts"
+	cowsay "github.com/Code-Hex/Neo-cowsay/v2"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,23 +26,25 @@ import (
 const mathTableEnd = 10
 
 var cowfiles = []string{
-	"fox",
-	"alpaca",
-	"dragon",
+	//"alpaca",
 	"bud-frogs",
+	"default",
 	"dragon-and-cow",
+	"dragon",
 	"elephant",
+	//"fox",
+	"gopher",
 	"hellokitty",
 	"kitty",
-	"llama",
 	"koala",
+	//"llama",
 	"meow",
 	"moose",
 	"sheep",
 	"small",
-	"default",
+	"squirrel",
 	"stegosaurus",
-	"sus",
+	//"sus",
 	"turkey",
 	"turtle",
 }
@@ -572,16 +574,22 @@ func funMessage(message string, windowWidth int) string {
 }
 
 func feedbackCoach(coach, message string) string {
-	cowsay, err := exec.LookPath("cowsay")
+	say, err := cowsay.Say(
+		message,
+		cowsay.Type(coach),
+		cowsay.BallonWidth(40),
+	)
+	// cowsay, err := exec.LookPath("cowsay")
+	// if err != nil {
+	// 	return message
+	// }
+	// cmd := exec.Command(cowsay, "-f", coach, message)
+	// o, err := cmd.Output()
 	if err != nil {
 		return message
 	}
-	cmd := exec.Command(cowsay, "-f", coach, message)
-	o, err := cmd.Output()
-	if err != nil {
-		return message
-	}
-	return string(o)
+	// return string(o)
+	return say
 }
 
 // --- AI generated ---
