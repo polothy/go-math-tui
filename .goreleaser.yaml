@@ -17,6 +17,7 @@ builds:
 changelog:
   sort: asc
   use: github
+  format: "{{.SHA}}: {{.Message}}
   filters:
     exclude:
       - "^docs:"
