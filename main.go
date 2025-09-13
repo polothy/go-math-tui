@@ -205,11 +205,11 @@ var (
 	correctBlends   = gamut.Blends(lipgloss.Color("#FF5F87"), lipgloss.Color("#874BFD"), 50)
 	incorrectBlends = gamut.Blends(lipgloss.Color("#1ac500"), lipgloss.Color("#3b9be9"), 50)
 
-	titleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Underline(true).AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center)
-	questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F25D94")).Bold(true)
-	feedbackStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	splashStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true).Background(lipgloss.Color("57")).Padding(1, 2)
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Faint(true)
+	// titleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Underline(true).AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center)
+	// questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F25D94")).Bold(true)
+	// feedbackStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	// splashStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true).Background(lipgloss.Color("57")).Padding(1, 2)
+	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Faint(true)
 )
 
 func pow10(n int) int {
@@ -347,7 +347,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	switch m.screen {
 	case screenSplash:
-		return funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game \uee80", m.player), m.windowWidth)
+		return funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game :)", m.player), m.windowWidth)
 	case screenPlay:
 		return "\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.question), blends) +
 			"\n\n" + m.input.View() +
