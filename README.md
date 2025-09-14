@@ -8,8 +8,8 @@ Everyone needs a friend, especially when learning math. [Screenshots](https://gi
 
 Download the correct `*.tar.gz` file from [GitHub](https://github.com/polothy/go-math-tui/releases/latest).
 
-- If you have macOS with a M1, M2, etc (Apple Silicon / ARM), then download the one that ends with `darwin_arm64.tar.gz`.
-- If you have macOS with a Intel processor, then download the one that ends with `darwin_amd64.tar.gz`.
+- If you have macOS with a M1, M2, etc processor (Apple Silicon / ARM), then download the file that ends with `darwin_arm64.tar.gz`.
+- If you have macOS with a Intel processor, then download the file that ends with `darwin_amd64.tar.gz`.
 
 ## Install From Source
 
