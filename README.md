@@ -1,6 +1,6 @@
 # Math Buddy
 
-Everyone needs a friend, especially when learning math.
+Everyone needs a friend, especially when learning math. [Screenshots](https://github.com/polothy/go-math-tui/wiki/Screenshots)
 
 # Install
 
