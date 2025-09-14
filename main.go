@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	// "github.com/NimbleMarkets/ntcharts"
 	cowsay "github.com/Code-Hex/Neo-cowsay/v2"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -161,20 +160,21 @@ func (p problems) IndexOf(a problem) int {
 }
 
 type model struct {
-	screen      screen
-	mode        mode
-	player      string
-	digits      int
-	table       int
-	input       textinput.Model
-	feedback    string
-	prob        problem
-	probs       problems
-	coach       string
-	level       int
-	levelBar    progress.Model
-	windowWidth int
-	splashWait  int
+	screen       screen
+	mode         mode
+	player       string
+	digits       int
+	table        int
+	input        textinput.Model
+	feedback     string
+	prob         problem
+	probs        problems
+	coach        string
+	level        int
+	levelBar     progress.Model
+	windowWidth  int
+	windowHeight int
+	splashWait   int
 
 	// Stats
 	totalRight int
@@ -189,6 +189,13 @@ func initialModel() model {
 	ti.Focus()
 	ti.CharLimit = 32
 	ti.Width = 20
+	ti.PromptStyle = style.Foreground(lipgloss.Color("#1ac500")).Bold(true)
+	ti.TextStyle = style
+	ti.PlaceholderStyle = style.Foreground(lipgloss.Color("240"))
+	ti.CompletionStyle = style.Foreground(lipgloss.Color("240"))
+	ti.Cursor.Style = style.Foreground(lipgloss.Color("#F25D94"))
+
+	// TODO https://github.com/charmbracelet/bubbles/pull/543 - once fixed can set EmptyStyle on progress
 
 	return model{
 		screen:     screenSplash,
@@ -207,11 +214,15 @@ var (
 	correctBlends   = gamut.Blends(lipgloss.Color("#FF5F87"), lipgloss.Color("#874BFD"), 50)
 	incorrectBlends = gamut.Blends(lipgloss.Color("#1ac500"), lipgloss.Color("#3b9be9"), 50)
 
+	bgColor       = lipgloss.Color("#21242a")                                                     // Default background
+	style         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Background(bgColor) // Base style, so it looks better in light terminals
+	appStyle      = style.PaddingTop(1).PaddingLeft(2).PaddingRight(2)                            // Background for whole screen
+	dimStyle      = style.Foreground(lipgloss.Color("250")).Faint(true)
+	feedbackStyle = style.Background(lipgloss.Color("#ff0000"))
+
 	// titleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true).Underline(true).AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center)
 	// questionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F25D94")).Bold(true)
-	// feedbackStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 	// splashStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("201")).Bold(true).Background(lipgloss.Color("57")).Padding(1, 2)
-	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Faint(true)
 )
 
 func pow10(n int) int {
@@ -288,10 +299,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							cmds = append(cmds, tea.Tick(time.Second*4, func(time.Time) tea.Msg { return "next" }))
 						}
 						cmds = append(cmds, m.levelBar.SetPercent(per))
-						m.feedback = rainbow(lipgloss.NewStyle(), feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
+						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
 						// m.feedback = Lolcatize(feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)))
 					} else {
-						m.feedback = rainbow(lipgloss.NewStyle(), feedbackCoach(m.coach, fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
+						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
 						m.totalWrong++
 						m.wrongMap[m.prob.question]++
 						m.prob.wrong++
@@ -302,7 +313,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.prob = m.probs.Random()
 				} else {
-					m.feedback = "Please enter a number!"
+					m.feedback = feedbackStyle.Render("Please enter a number!")
 				}
 				var cmd tea.Cmd
 				if len(cmds) > 0 {
@@ -335,11 +346,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		padding := 7
 		m.levelBar.Width = msg.Width - padding*2 - 4
-		m.windowWidth = msg.Width
+		m.windowWidth, m.windowHeight = msg.Width, msg.Height
 		return m, nil
 	case progress.FrameMsg: // FrameMsg is sent when the progress bar wants to animate itself
 		progressModel, cmd := m.levelBar.Update(msg)
 		m.levelBar = progressModel.(progress.Model)
+		return m, cmd
+	default:
+		// So it can blink, etc
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
 		return m, cmd
 	}
 	return m, nil
@@ -347,14 +363,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- View ---
 func (m model) View() string {
+	var o string
 	switch m.screen {
 	case screenSplash:
-		return funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game :)", m.player), m.windowWidth)
+		o = funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game :)", m.player), m.windowWidth)
 	case screenPlay:
-		return "\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.question), blends) +
+		o = "\n" + rainbow(style.Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.question), blends) +
 			"\n\n" + m.input.View() +
-			"\n\n" + lipgloss.PlaceHorizontal(m.windowWidth, lipgloss.Center, lipgloss.NewStyle().Align(lipgloss.Left).Render(m.feedback)) +
-			"\n\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View() +
+			"\n\n" + lipgloss.PlaceHorizontal(m.windowWidth, lipgloss.Center, style.Align(lipgloss.Left).Render(m.feedback)) +
+			"\n\n" + rainbow(style.Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View() +
 			"\n\n\n" + dimStyle.Render("Psst, press the esc key to stop playing.")
 
 	case screenLevelUp:
@@ -368,29 +385,13 @@ func (m model) View() string {
                                 | |      
                                 |_|      
 `
-		return "\n\n" + lipgloss.PlaceHorizontal(m.windowWidth-20, lipgloss.Center, lipgloss.NewStyle().Align(lipgloss.Left).Render(Lolcatize(l))) +
-			"\n\n" + rainbow(lipgloss.NewStyle().Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View()
+		o = "\n\n" + lipgloss.PlaceHorizontal(m.windowWidth-20, lipgloss.Center, style.Align(lipgloss.Left).Render(Lolcatize(l)), lipgloss.WithWhitespaceBackground(bgColor)) +
+			"\n\n" + rainbow(style.Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View()
 
 	case screenEnd:
-		var out string
-		// out = testStyle.Render(fmt.Sprintf("Thanks for playing, %s!\n", m.player))
-		// out = rainbow(lipgloss.NewStyle(), fmt.Sprintf("Thanks for playing, %s!\n", m.player), blends)
-		out = funMessage(fmt.Sprintf("Thanks for playing, %s!\n", m.player), m.windowWidth)
-		// out += fmt.Sprintf("You got %d right and %d wrong.\n\n", m.totalRight, m.totalWrong)
-		// if m.mode == modeMul {
-		// 	data := []ntcharts.BarDatum{}
-		// 	for q, c := range m.rightMap {
-		// 		data = append(data, ntcharts.BarDatum{Name: q, Value: c})
-		// 	}
-		// 	for q, c := range m.wrongMap {
-		// 		data = append(data, ntcharts.BarDatum{Name: q + " (wrong)", Value: c})
-		// 	}
-		// 	chart := ntcharts.BarChart(data, ntcharts.WithHeight(10))
-		// 	out += chart
-		// }
-		return out
+		o = funMessage(fmt.Sprintf("Thanks for playing, %s!\n", m.player), m.windowWidth)
 	}
-	return ""
+	return appStyle.Width(m.windowWidth).Height(m.windowHeight).Render(o)
 }
 
 func main() {
@@ -556,16 +557,17 @@ func rainbow(base lipgloss.Style, s string, colors []color.Color) string {
 }
 
 func funMessage(message string, windowWidth int) string {
-	dialogBoxStyle := lipgloss.NewStyle().
+	dialogBoxStyle := style.
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#874BFD")).
+		BorderBackground(bgColor).
 		Padding(1, 0).
 		BorderTop(true).
 		BorderLeft(true).
 		BorderRight(true).
 		BorderBottom(true)
 
-	question := lipgloss.NewStyle().Width(50).Align(lipgloss.Center).Render(rainbow(lipgloss.NewStyle(), message, blends))
+	question := style.Width(50).Align(lipgloss.Center).Render(rainbow(style, message, blends))
 
 	return lipgloss.Place(windowWidth, 9,
 		lipgloss.Center, lipgloss.Center,
@@ -664,7 +666,7 @@ func LolcatizeWithConfig(s string, spread, freq, seed float64, resetPerLine bool
 		bi := clampByte(blue)
 
 		hex := fmt.Sprintf("#%02x%02x%02x", ri, gi, bi)
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(hex))
+		style := style.Foreground(lipgloss.Color(hex))
 		out.WriteString(style.Render(string(r)))
 
 		idx++
