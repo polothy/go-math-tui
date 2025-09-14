@@ -64,6 +64,7 @@ const (
 	modeAdd
 	modeSub
 	modeMul
+	modeDiv
 )
 
 type problem struct {
@@ -81,22 +82,31 @@ func NewProblem(question string, answer int) problem {
 type problems []problem
 
 func NewMulProblems(table int) problems {
-	newTable := func(x, max int) problems {
-		p := make(problems, 0, max)
-		for y := 1; y <= max; y++ {
-			p = append(p, NewProblem(fmt.Sprintf("%d x %d", x, y), x*y))
-		}
-		return p
-	}
+	var p problems
 	if table == 0 {
-		var p problems
 		for x := 1; x <= mathTableEnd; x++ {
-			x++
-			p = append(p, newTable(x, mathTableEnd)...)
+			p = append(p, NewMulProblems(x)...)
 		}
 		return p
 	}
-	return newTable(table, mathTableEnd)
+	for x := 1; x <= mathTableEnd; x++ {
+		p = append(p, NewProblem(fmt.Sprintf("%d x %d", table, x), table*x))
+	}
+	return p
+}
+
+func NewDivProblems(table int) problems {
+	var p problems
+	if table == 0 {
+		for y := 1; y <= mathTableEnd; y++ {
+			p = append(p, NewDivProblems(y)...)
+		}
+		return p
+	}
+	for x := 1; x <= mathTableEnd; x++ {
+		p = append(p, NewProblem(fmt.Sprintf("%d / %d", x*table, table), x))
+	}
+	return p
 }
 
 func NewAddProblems(digits int) problems {
@@ -127,6 +137,9 @@ func NewSubProblems(digits int) problems {
 	return p
 }
 
+// Random selects a random problem, but if the player correctly answers the problem,
+// then the problem wont be re-asked until all the other problems are correctly answerd.
+// This ensures the player sees all the problems and can retry incorrect ones.
 func (p problems) Random() problem {
 	low := -1
 	for _, prob := range p {
@@ -403,6 +416,8 @@ func main() {
 	switch m.mode {
 	case modeMul:
 		m.probs = NewMulProblems(m.table)
+	case modeDiv:
+		m.probs = NewDivProblems(m.table)
 	case modeAdd:
 		m.probs = NewAddProblems(m.digits)
 	case modeSub:
@@ -410,6 +425,12 @@ func main() {
 	default:
 		panic("forgot to implment problems for new game mode")
 	}
+
+	// Uncomment to debug problem generation
+	// for _, p := range m.probs {
+	// 	fmt.Println(p.question, "=", p.answer)
+	// }
+	// os.Exit(0)
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -427,13 +448,13 @@ func parseFlags(m model) model {
 		Quick  bool
 	}{}
 	flag.StringVar(&opts.Player, "player", "", "Player name")
-	flag.IntVar(&opts.Mode, "mode", 0, fmt.Sprintf("Game mode, add=%d, sub=%d, and mul=%d", modeAdd, modeSub, modeMul))
+	flag.IntVar(&opts.Mode, "mode", 0, fmt.Sprintf("Game mode, add=%d, sub=%d, mul=%d, and div=%d", modeAdd, modeSub, modeMul, modeDiv))
 	flag.IntVar(&opts.Digits, "digits", 0, "For sub/add, max number of digits to use")
 	flag.IntVar(&opts.Table, "table", 0, "For mul, multiplication table to practice, or zero for all")
 	flag.BoolVar(&opts.Quick, "quick", false, "Quickly start")
 	flag.Parse()
 
-	if opts.Mode <= 0 || opts.Mode > 3 || opts.Player == "" {
+	if opts.Mode <= 0 || opts.Mode > 4 || opts.Player == "" {
 		return m
 	}
 	m.mode = mode(opts.Mode)
@@ -480,24 +501,25 @@ func runNewGameForm(m model) model {
 			huh.NewOption("Addition", modeAdd),
 			huh.NewOption("Subtraction", modeSub),
 			huh.NewOption("Multiplication", modeMul),
+			huh.NewOption("Division", modeDiv),
 		)
 
 	// Based on mode, either select number of digits (sub/add) or which multiplication table to use
 	var modeOpt string
 	modeOptI := huh.NewInput().Key("modeOpt").Value(&modeOpt).TitleFunc(func() string {
-		if m.mode == modeMul {
+		if m.mode == modeMul || m.mode == modeDiv {
 			return fmt.Sprintf("Which table? (1-%d or all)", mathTableEnd)
 		}
 		return "How many digits max?"
 	}, &m.mode).Validate(func(s string) error {
-		if m.mode == modeMul && s == "all" {
+		if (m.mode == modeMul || m.mode == modeDiv) && s == "all" {
 			return nil
 		}
 		num, err := strconv.Atoi(s)
 		if err != nil {
 			return errors.New("please enter a number")
 		}
-		if m.mode == modeMul {
+		if m.mode == modeMul || m.mode == modeDiv {
 			if num < 1 || num > mathTableEnd {
 				return fmt.Errorf("please enter 1 through %d or all", mathTableEnd)
 			}
@@ -513,7 +535,7 @@ func runNewGameForm(m model) model {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
-	if m.mode == modeMul && modeOpt == "all" {
+	if (m.mode == modeMul || m.mode == modeDiv) && modeOpt == "all" {
 		modeOpt = "0"
 	}
 	num, err := strconv.Atoi(modeOpt)
@@ -522,28 +544,11 @@ func runNewGameForm(m model) model {
 		os.Exit(1)
 	}
 	// Save modeOpt to model
-	if m.mode == modeMul {
+	if m.mode == modeMul || m.mode == modeDiv {
 		m.table = num
 	} else {
 		m.digits = num
 	}
-	// fmt.Println("ADD")
-	// for _, p := range NewAddProblems(1) {
-	// 	fmt.Println(p.question, "=", p.answer)
-	// }
-	// fmt.Println()
-	// fmt.Println()
-	// fmt.Println("SUB")
-	// for _, p := range NewSubProblems(1) {
-	// 	fmt.Println(p.question, "=", p.answer)
-	// }
-	// fmt.Println()
-	// fmt.Println()
-	// fmt.Println("MUL")
-	// for _, p := range NewMulProblems(3) {
-	// 	fmt.Println(p.question, "=", p.answer)
-	// }
-	// os.Exit(0)
 	return m
 }
 
@@ -581,16 +586,9 @@ func feedbackCoach(coach, message string) string {
 		cowsay.Type(coach),
 		cowsay.BallonWidth(40),
 	)
-	// cowsay, err := exec.LookPath("cowsay")
-	// if err != nil {
-	// 	return message
-	// }
-	// cmd := exec.Command(cowsay, "-f", coach, message)
-	// o, err := cmd.Output()
 	if err != nil {
 		return message
 	}
-	// return string(o)
 	return say
 }
 
