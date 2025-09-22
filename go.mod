@@ -3,14 +3,14 @@ module github.com/polothy/go-math-tui
 go 1.25
 
 require (
+	github.com/Code-Hex/Neo-cowsay/v2 v2.0.4
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.9
+	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
 )
 
 require (
-	github.com/Code-Hex/Neo-cowsay/v2 v2.0.4 // indirect
 	github.com/Code-Hex/go-wordwrap v1.0.0 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
