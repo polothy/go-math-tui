@@ -14,6 +14,7 @@ import (
 
 	cowsay "github.com/Code-Hex/Neo-cowsay/v2"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -185,6 +186,7 @@ type model struct {
 	coach        string
 	level        int
 	levelBar     progress.Model
+	stopwatch    stopwatch.Model
 	windowWidth  int
 	windowHeight int
 	splashWait   int
@@ -215,6 +217,7 @@ func initialModel() model {
 		splashWait: 3,
 		level:      1,
 		levelBar:   progress.New(progress.WithDefaultGradient(), progress.WithSpringOptions(15, 0.5), progress.WithoutPercentage()),
+		stopwatch:  stopwatch.NewWithInterval(time.Second),
 		input:      ti,
 		rightMap:   make(map[string]int),
 		wrongMap:   make(map[string]int),
@@ -253,7 +256,7 @@ func (m model) Init() tea.Cmd {
 	} else {
 		nextCmd = func() tea.Msg { return "next" }
 	}
-	return tea.Batch(textinput.Blink, nextCmd)
+	return tea.Batch(textinput.Blink, m.stopwatch.Init(), nextCmd)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -366,10 +369,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.levelBar = progressModel.(progress.Model)
 		return m, cmd
 	default:
-		// So it can blink, etc
-		var cmd tea.Cmd
-		m.input, cmd = m.input.Update(msg)
-		return m, cmd
+		var inputCmd, stopwatchCmd tea.Cmd
+
+		m.input, inputCmd = m.input.Update(msg)             // So it can blink, etc
+		m.stopwatch, stopwatchCmd = m.stopwatch.Update(msg) // Update timer
+
+		return m, tea.Batch(inputCmd, stopwatchCmd)
 	}
 	return m, nil
 }
@@ -385,6 +390,7 @@ func (m model) View() string {
 			"\n\n" + m.input.View() +
 			"\n\n" + lipgloss.PlaceHorizontal(m.windowWidth, lipgloss.Center, style.Align(lipgloss.Left).Render(m.feedback)) +
 			"\n\n" + rainbow(style.Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View() +
+			"\n\n" + style.Align(lipgloss.Right).Width(m.windowWidth-6).Render(playtime(m.stopwatch.Elapsed())) +
 			"\n\n\n" + dimStyle.Render("Psst, press the esc key to stop playing.")
 
 	case screenLevelUp:
@@ -590,6 +596,22 @@ func feedbackCoach(coach, message string) string {
 		return message
 	}
 	return say
+}
+
+func playtime(d time.Duration) string {
+	minutes := int(d.Minutes())
+	seconds := int(d.Seconds()) % 60
+
+	o := fmt.Sprintf("%d second", seconds)
+	if seconds > 0 {
+		o += "s"
+	}
+	if minutes == 1 {
+		o = "1 minute and " + o
+	} else if minutes > 1 {
+		o = fmt.Sprintf("%d minutes and %s", minutes, o)
+	}
+	return rainbow(style.Bold(true), fmt.Sprintf("Playtime: %s!", o), blends)
 }
 
 // --- AI generated ---
