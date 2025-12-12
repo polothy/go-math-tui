@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
 	cowsay "github.com/Code-Hex/Neo-cowsay/v2"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/stopwatch"
@@ -51,6 +53,11 @@ var cowfiles = []string{
 	"turkey",
 	"turtle",
 }
+
+var (
+	//go:embed sounds/level-up-enhancement-8-bit-retro-sound-effect-153002.mp3
+	SoundlevelUp []byte
+)
 
 type screen int
 
@@ -226,6 +233,7 @@ func initialModel() model {
 		input:      ti,
 		rightMap:   make(map[string]int),
 		wrongMap:   make(map[string]int),
+		otoContext: NewOtoContext(),
 	}
 }
 
@@ -318,6 +326,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.level = level
 							m.screen = screenLevelUp
 							cmds = append(cmds, tea.Tick(time.Second*4, func(time.Time) tea.Msg { return "next" }))
+							cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundlevelUp))
 						}
 						cmds = append(cmds, m.levelBar.SetPercent(per))
 						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
@@ -419,54 +428,54 @@ func (m model) View() string {
 }
 
 func main() {
-	// Read the mp3 file into memory
-	fileBytes, err := os.ReadFile("./sounds/level-up-enhancement-8-bit-retro-sound-effect-153002.mp3")
-	if err != nil {
-		panic("reading my-file.mp3 failed: " + err.Error())
-	}
+	// // Read the mp3 file into memory
+	// fileBytes, err := os.ReadFile("./sounds/level-up-enhancement-8-bit-retro-sound-effect-153002.mp3")
+	// if err != nil {
+	// 	panic("reading my-file.mp3 failed: " + err.Error())
+	// }
 
-	// Convert the pure bytes into a reader object that can be used with the mp3 decoder
-	fileBytesReader := bytes.NewReader(fileBytes)
+	// // Convert the pure bytes into a reader object that can be used with the mp3 decoder
+	// fileBytesReader := bytes.NewReader(fileBytes)
 
-	// Decode file
-	decodedMp3, err := mp3.NewDecoder(fileBytesReader)
-	if err != nil {
-		panic("mp3.NewDecoder failed: " + err.Error())
-	}
+	// // Decode file
+	// decodedMp3, err := mp3.NewDecoder(fileBytesReader)
+	// if err != nil {
+	// 	panic("mp3.NewDecoder failed: " + err.Error())
+	// }
 
-	// Prepare an Oto context (this will use your default audio device) that will
-	// play all our sounds. Its configuration can't be changed later.
+	// // Prepare an Oto context (this will use your default audio device) that will
+	// // play all our sounds. Its configuration can't be changed later.
 
-	op := &oto.NewContextOptions{}
+	// op := &oto.NewContextOptions{}
 
-	// Usually 44100 or 48000. Other values might cause distortions in Oto
-	op.SampleRate = 44100
+	// // Usually 44100 or 48000. Other values might cause distortions in Oto
+	// op.SampleRate = 44100
 
-	// Number of channels (aka locations) to play sounds from. Either 1 or 2.
-	// 1 is mono sound, and 2 is stereo (most speakers are stereo).
-	op.ChannelCount = 2
+	// // Number of channels (aka locations) to play sounds from. Either 1 or 2.
+	// // 1 is mono sound, and 2 is stereo (most speakers are stereo).
+	// op.ChannelCount = 2
 
-	// Format of the source. go-mp3's format is signed 16bit integers.
-	op.Format = oto.FormatSignedInt16LE
+	// // Format of the source. go-mp3's format is signed 16bit integers.
+	// op.Format = oto.FormatSignedInt16LE
 
-	// Remember that you should **not** create more than one context
-	otoCtx, readyChan, err := oto.NewContext(op)
-	if err != nil {
-		panic("oto.NewContext failed: " + err.Error())
-	}
-	// It might take a bit for the hardware audio devices to be ready, so we wait on the channel.
-	<-readyChan
+	// // Remember that you should **not** create more than one context
+	// otoCtx, readyChan, err := oto.NewContext(op)
+	// if err != nil {
+	// 	panic("oto.NewContext failed: " + err.Error())
+	// }
+	// // It might take a bit for the hardware audio devices to be ready, so we wait on the channel.
+	// <-readyChan
 
-	// Create a new 'player' that will handle our sound. Paused by default.
-	player := otoCtx.NewPlayer(decodedMp3)
+	// // Create a new 'player' that will handle our sound. Paused by default.
+	// player := otoCtx.NewPlayer(decodedMp3)
 
-	// Play starts playing the sound and returns without waiting for it (Play() is async).
-	player.Play()
+	// // Play starts playing the sound and returns without waiting for it (Play() is async).
+	// player.Play()
 
-	// We can wait for the sound to finish playing using something like this
-	for player.IsPlaying() {
-		time.Sleep(time.Millisecond)
-	}
+	// // We can wait for the sound to finish playing using something like this
+	// for player.IsPlaying() {
+	// 	time.Sleep(time.Millisecond)
+	// }
 
 	m := parseFlags(initialModel())
 	if m.mode == modeNone {
@@ -666,6 +675,63 @@ func playtime(d time.Duration) string {
 		o = fmt.Sprintf("%d minutes and %s", minutes, o)
 	}
 	return rainbow(style.Bold(true), fmt.Sprintf("Playtime: %s!", o), blends)
+}
+
+func NewOtoContext() *oto.Context {
+	// Prepare an Oto context (this will use your default audio device) that will
+	// play all our sounds. Its configuration can't be changed later.
+
+	op := &oto.NewContextOptions{}
+
+	// Usually 44100 or 48000. Other values might cause distortions in Oto
+	op.SampleRate = 44100
+
+	// Number of channels (aka locations) to play sounds from. Either 1 or 2.
+	// 1 is mono sound, and 2 is stereo (most speakers are stereo).
+	op.ChannelCount = 2
+
+	// Format of the source. go-mp3's format is signed 16bit integers.
+	op.Format = oto.FormatSignedInt16LE
+
+	// Remember that you should **not** create more than one context
+	otoCtx, readyChan, err := oto.NewContext(op)
+	if err != nil {
+		// panic("oto.NewContext failed: " + err.Error())
+		return nil
+	}
+	// It might take a bit for the hardware audio devices to be ready, so we wait on the channel.
+	<-readyChan
+
+	return otoCtx
+}
+
+func PlaySoundCmd(otoCtx *oto.Context, sound []byte) tea.Cmd {
+	return func() tea.Msg {
+		if otoCtx == nil {
+			return nil
+		}
+		// Convert the pure bytes into a reader object that can be used with the mp3 decoder
+		fileBytesReader := bytes.NewReader(sound)
+
+		// Decode file
+		decodedMp3, err := mp3.NewDecoder(fileBytesReader)
+		if err != nil {
+			return nil
+			// panic("mp3.NewDecoder failed: " + err.Error())
+		}
+
+		// Create a new 'player' that will handle our sound. Paused by default.
+		player := otoCtx.NewPlayer(decodedMp3)
+
+		// Play starts playing the sound and returns without waiting for it (Play() is async).
+		player.Play()
+
+		// We can wait for the sound to finish playing using something like this
+		for player.IsPlaying() {
+			time.Sleep(time.Millisecond)
+		}
+		return nil // Could return a message like soundFinishedMsg{} if I needed to know when it was done
+	}
 }
 
 // --- AI generated ---
