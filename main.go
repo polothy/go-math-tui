@@ -268,7 +268,6 @@ func initialModel() model {
 		coachHist:  coachHist,
 		rightMap:   make(map[string]int),
 		wrongMap:   make(map[string]int),
-		otoContext: NewOtoContext(),
 	}
 }
 
@@ -493,17 +492,19 @@ func main() {
 
 func parseFlags(m model) model {
 	opts := struct {
-		Player string
-		Digits int
-		Table  int
-		Mode   int
-		Quick  bool
+		Player   string
+		Digits   int
+		Table    int
+		Mode     int
+		Quick    bool
+		NoSounds bool
 	}{}
 	flag.StringVar(&opts.Player, "player", "", "Player name")
 	flag.IntVar(&opts.Mode, "mode", 0, fmt.Sprintf("Game mode, add=%d, sub=%d, mul=%d, and div=%d", modeAdd, modeSub, modeMul, modeDiv))
 	flag.IntVar(&opts.Digits, "digits", 0, "For sub/add, max number of digits to use")
 	flag.IntVar(&opts.Table, "table", 0, "For mul, multiplication table to practice, or zero for all")
 	flag.BoolVar(&opts.Quick, "quick", false, "Quickly start")
+	flag.BoolVar(&opts.NoSounds, "no-sounds", false, "Prevent playing sounds")
 	flag.Parse()
 
 	if opts.Mode <= 0 || opts.Mode > 4 || opts.Player == "" {
@@ -528,6 +529,9 @@ func parseFlags(m model) model {
 	}
 	if opts.Quick {
 		m.splashWait = 0
+	}
+	if !opts.NoSounds {
+		m.otoContext = NewOtoContext()
 	}
 	return m
 }
