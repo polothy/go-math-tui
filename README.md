@@ -32,3 +32,10 @@ Depending on how and where the file is, you might need to type the file path to 
 ```shell
 ~/Downloads/go-math-tui_0.1.0_darwin_arm64/go-math-tui
 ```
+
+# Credits
+
+* [Charm](https://charm.land)
+* [Level Up MP3](https://pixabay.com/sound-effects/level-up-enhancement-8-bit-retro-sound-effect-153002/)
+* [Ebitengine - oto](https://github.com/ebitengine/oto)
+* Many others

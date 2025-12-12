@@ -9,10 +9,10 @@ gomod:
   proxy: true
 
 builds:
-  - env: ["CGO_ENABLED=0"]
-    mod_timestamp: "{{ .CommitTimestamp }}"
+  - mod_timestamp: "{{ .CommitTimestamp }}"
     flags: ["-trimpath"]
-    targets: ["go_first_class"]
+    goos:
+      - darwin
 
 changelog:
   sort: asc
