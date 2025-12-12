@@ -183,6 +183,30 @@ func (p problems) IndexOf(a problem) int {
 	return -1
 }
 
+// NewCoach gets a random coach that you have not seen recently
+func NewCoach(h map[string]int) string {
+	low := -1
+	for _, used := range h {
+		if low < 0 {
+			low = used
+			continue
+		}
+		if used < low {
+			low = used
+		}
+	}
+	var candidates []string
+	for coach, used := range h {
+		if used == low {
+			candidates = append(candidates, coach)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+	return candidates[rand.Intn(len(candidates))]
+}
+
 type model struct {
 	screen       screen
 	mode         mode
@@ -194,6 +218,7 @@ type model struct {
 	prob         problem
 	probs        problems
 	coach        string
+	coachHist    map[string]int
 	level        int
 	levelBar     progress.Model
 	stopwatch    stopwatch.Model
@@ -224,6 +249,11 @@ func initialModel() model {
 
 	// TODO https://github.com/charmbracelet/bubbles/pull/543 - once fixed can set EmptyStyle on progress
 
+	coachHist := make(map[string]int)
+	for _, coach := range cowfiles {
+		coachHist[coach] = 0
+	}
+
 	return model{
 		screen:     screenSplash,
 		splashWait: 3,
@@ -231,6 +261,7 @@ func initialModel() model {
 		levelBar:   progress.New(progress.WithDefaultGradient(), progress.WithSpringOptions(15, 0.5), progress.WithoutPercentage()),
 		stopwatch:  stopwatch.NewWithInterval(time.Second),
 		input:      ti,
+		coachHist:  coachHist,
 		rightMap:   make(map[string]int),
 		wrongMap:   make(map[string]int),
 		otoContext: NewOtoContext(),
@@ -294,7 +325,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input.SetValue("") // Reset input
 
 				if m.coach == "" {
-					m.coach = cowfiles[rand.Intn(len(cowfiles))]
+					m.coach = NewCoach(m.coachHist)
 				}
 
 				lval := strings.ToLower(val)
@@ -315,14 +346,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						level := (m.totalRight / 3) + 1 // Add one because we start at 1
 						if level > m.level {
-							// After level up, get a new coach!
-							for range 100 {
-								newCoach := cowfiles[rand.Intn(len(cowfiles))]
-								if m.coach != newCoach {
-									m.coach = newCoach
-									break
-								}
-							}
+							m.coachHist[m.coach]++
+							m.coach = NewCoach(m.coachHist) // After level up, get a new coach!
 							m.level = level
 							m.screen = screenLevelUp
 							cmds = append(cmds, tea.Tick(time.Second*4, func(time.Time) tea.Msg { return "next" }))
