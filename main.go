@@ -57,6 +57,10 @@ var cowfiles = []string{
 var (
 	//go:embed sounds/level-up-enhancement-8-bit-retro-sound-effect-153002.mp3
 	SoundlevelUp []byte
+	//go:embed sounds/success-videogame-sfx-423626.mp3
+	SoundRight []byte
+	//go:embed sounds/mooing-cow-122255.mp3
+	SoundWrong []byte
 )
 
 type screen int
@@ -352,6 +356,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.screen = screenLevelUp
 							cmds = append(cmds, tea.Tick(time.Second*4, func(time.Time) tea.Msg { return "next" }))
 							cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundlevelUp))
+						} else {
+							cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundRight))
 						}
 						cmds = append(cmds, m.levelBar.SetPercent(per))
 						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
@@ -361,6 +367,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.totalWrong++
 						m.wrongMap[m.prob.question]++
 						m.prob.wrong++
+						cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundWrong))
 					}
 					m.prob.seen++
 					if i := m.probs.IndexOf(m.prob); i >= 0 {

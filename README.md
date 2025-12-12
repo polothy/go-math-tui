@@ -37,5 +37,7 @@ Depending on how and where the file is, you might need to type the file path to 
 
 * [Charm](https://charm.land)
 * [Level Up MP3](https://pixabay.com/sound-effects/level-up-enhancement-8-bit-retro-sound-effect-153002/)
+* [Right Answer MP3](https://pixabay.com/sound-effects/success-videogame-sfx-423626/)
+* [Wrong Answer MP3](https://pixabay.com/sound-effects/mooing-cow-122255/)
 * [Ebitengine - oto](https://github.com/ebitengine/oto)
 * Many others
