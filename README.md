@@ -1,6 +1,8 @@
 # Math Buddy
 
-Everyone needs a friend, especially when learning math. [Screenshots](https://github.com/polothy/go-math-tui/wiki/Screenshots)
+Everyone needs a friend, especially when learning math.
+
+![Mid-play with some feedback from a coach](https://private-user-images.githubusercontent.com/634657/489220279-b16fc3a1-b3e8-44a2-80f2-5f45d8e0de07.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjU1MTMxNjMsIm5iZiI6MTc2NTUxMjg2MywicGF0aCI6Ii82MzQ2NTcvNDg5MjIwMjc5LWIxNmZjM2ExLWIzZTgtNDRhMi04MGYyLTVmNDVkOGUwZGUwNy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMjEyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTIxMlQwNDE0MjNaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0yZjgxNmI4YmVhNTRiYjY2NGE4NGYyNzA5ZTg4Y2FiYTA0NWM2MjI4MTFhYTgwMDdjMzRlYmJiZjY3MDI2YTZlJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.EzRqksPg0v4SUI4t7oMwLvbjQkq4YK1n_RI4TwvjUmI)
 
 # Install
 
@@ -40,4 +42,4 @@ Depending on how and where the file is, you might need to type the file path to 
 * [Right Answer MP3](https://pixabay.com/sound-effects/success-videogame-sfx-423626/)
 * [Wrong Answer MP3](https://pixabay.com/sound-effects/mooing-cow-122255/)
 * [Ebitengine - oto](https://github.com/ebitengine/oto)
-* Many others
+* [GoReleaser](https://goreleaser.com)
