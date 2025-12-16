@@ -34,7 +34,6 @@ var cowfiles = []string{
 	//"alpaca",
 	"bud-frogs",
 	"default",
-	"dragon-and-cow",
 	"dragon",
 	"elephant",
 	//"fox",
@@ -275,7 +274,7 @@ func initialModel() model {
 var (
 	blends          = gamut.Blends(lipgloss.Color("#F25D94"), lipgloss.Color("#EDFF82"), 50)
 	correctBlends   = gamut.Blends(lipgloss.Color("#FF5F87"), lipgloss.Color("#874BFD"), 50)
-	incorrectBlends = gamut.Blends(lipgloss.Color("#1ac500"), lipgloss.Color("#3b9be9"), 50)
+	incorrectBlends = gamut.Blends(lipgloss.Color("#ff0000"), lipgloss.Color("#ff6b01"), 50)
 
 	bgColor       = lipgloss.Color("#21242a")                                                     // Default background
 	style         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Background(bgColor) // Base style, so it looks better in light terminals
@@ -362,7 +361,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
 						// m.feedback = Lolcatize(feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)))
 					} else {
-						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
+						m.feedback = rainbow(style, feedbackCoach("dragon-and-cow", fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
 						m.totalWrong++
 						m.wrongMap[m.prob.question]++
 						m.prob.wrong++
