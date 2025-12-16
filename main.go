@@ -507,6 +507,9 @@ func parseFlags(m model) model {
 	flag.BoolVar(&opts.NoSounds, "no-sounds", false, "Prevent playing sounds")
 	flag.Parse()
 
+	if !opts.NoSounds {
+		m.otoContext = NewOtoContext()
+	}
 	if opts.Mode <= 0 || opts.Mode > 4 || opts.Player == "" {
 		return m
 	}
@@ -529,9 +532,6 @@ func parseFlags(m model) model {
 	}
 	if opts.Quick {
 		m.splashWait = 0
-	}
-	if !opts.NoSounds {
-		m.otoContext = NewOtoContext()
 	}
 	return m
 }
