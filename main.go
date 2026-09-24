@@ -31,7 +31,6 @@ import (
 const mathTableEnd = 10
 
 var cowfiles = []string{
-	//"alpaca",
 	"bud-frogs",
 	"default",
 	"dragon",
@@ -154,9 +153,12 @@ func NewSubProblems(digits int) problems {
 // Random selects a random problem, but if the player correctly answers the problem,
 // then the problem wont be re-asked until all the other problems are correctly answerd.
 // This ensures the player sees all the problems and can retry incorrect ones.
-func (p problems) Random() problem {
+func (p problems) Random(lastSeen problem) problem {
 	low := -1
 	for _, prob := range p {
+		if prob.question == lastSeen.question {
+			continue
+		}
 		if low < 0 {
 			low = prob.correct
 			continue
@@ -167,6 +169,9 @@ func (p problems) Random() problem {
 	}
 	var candidates problems
 	for _, prob := range p {
+		if prob.question == lastSeen.question {
+			continue
+		}
 		if prob.correct == low {
 			candidates = append(candidates, prob)
 		}
@@ -371,7 +376,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if i := m.probs.IndexOf(m.prob); i >= 0 {
 						m.probs[i] = m.prob
 					}
-					m.prob = m.probs.Random()
+					m.prob = m.probs.Random(m.prob)
 				} else {
 					m.feedback = feedbackStyle.Render("Please enter a number!")
 				}
@@ -391,7 +396,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenSplash:
 			if msg == "next" {
 				m.screen = screenPlay
-				m.prob = m.probs.Random()
+				m.prob = m.probs.Random(m.prob)
 				m.input.SetValue("")
 				m.input.Placeholder = "Your answer"
 				m.input.Focus()
@@ -439,14 +444,14 @@ func (m model) View() string {
 
 	case screenLevelUp:
 		l := `
- _                    _   _    _       _ 
+ _                    _   _    _       _
 | |                  | | | |  | |     | |
 | |     _____   _____| | | |  | |_ __ | |
 | |    / _ \ \ / / _ \ | | |  | | '_ \| |
 | |___|  __/\ V /  __/ | | |__| | |_) |_|
 |______\___| \_/ \___|_|  \____/| .__/(_)
-                                | |      
-                                |_|      
+                                | |
+                                |_|
 `
 		o = "\n\n" + lipgloss.PlaceHorizontal(m.windowWidth-20, lipgloss.Center, style.Align(lipgloss.Left).Render(Lolcatize(l)), lipgloss.WithWhitespaceBackground(bgColor)) +
 			"\n\n" + rainbow(style.Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View()
