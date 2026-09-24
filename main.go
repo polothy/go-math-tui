@@ -523,13 +523,13 @@ func parseFlags(m model) model {
 	m.table = opts.Table
 
 	if m.table < 0 {
-		m.table = 1
+		m.table = 0
 	}
 	if m.table > mathTableEnd {
 		m.table = mathTableEnd
 	}
 	if m.digits < 1 {
-		m.table = 1
+		m.digits = 1
 	}
 	if m.digits > 3 {
 		m.digits = 3
