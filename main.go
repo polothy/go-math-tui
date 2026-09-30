@@ -81,18 +81,74 @@ const (
 )
 
 type problem struct {
-	question string
-	answer   int
-	seen     int
-	correct  int
-	wrong    int
+	op      mode
+	x       int
+	y       int
+	answer  int
+	seen    int
+	correct int
+	wrong   int
 }
 
-func NewProblem(question string, answer int) problem {
-	return problem{question: question, answer: answer}
+func NewProblem(op mode, x, y, answer int) problem {
+	return problem{op: op, x: x, y: y, answer: answer}
+}
+
+func (p problem) Question() string {
+	x := p.x
+	y := p.y
+	// Alternate order based on correct answers
+	if p.op == modeAdd || p.op == modeMul {
+		if p.correct%2 == 0 {
+			x = p.y
+			y = p.x
+		}
+	}
+	switch p.op {
+	case modeAdd:
+		return fmt.Sprintf("%d + %d", x, y)
+	case modeSub:
+		return fmt.Sprintf("%d - %d", x, y)
+	case modeDiv:
+		return fmt.Sprintf("%d / %d", x, y)
+	case modeMul:
+		return fmt.Sprintf("%d x %d", x, y)
+	}
+	return fmt.Sprintf("error: unknown math operator mode %d", p.op)
+}
+
+func (p problem) IsSame(b problem) bool {
+	if p.op != b.op {
+		return false
+	}
+	if p.x == b.x && p.y == b.y {
+		return true
+	}
+	// Order matters for these 2
+	if p.op == modeDiv || p.op == modeSub {
+		return false
+	}
+	return p.x == b.y && p.y == b.x
 }
 
 type problems []problem
+
+func RemoveDupes(xprobs problems) problems {
+	var probs problems
+	for _, xprob := range xprobs {
+		dupe := false
+		for _, prob := range probs {
+			if prob.IsSame(xprob) {
+				// fmt.Println(prob.question, xprob.question, "dupe")
+				dupe = true
+			}
+		}
+		if !dupe {
+			probs = append(probs, xprob)
+		}
+	}
+	return probs
+}
 
 func NewMulProblems(table int) problems {
 	var p problems
@@ -103,7 +159,7 @@ func NewMulProblems(table int) problems {
 		return p
 	}
 	for x := 1; x <= mathTableEnd; x++ {
-		p = append(p, NewProblem(fmt.Sprintf("%d x %d", table, x), table*x))
+		p = append(p, NewProblem(modeMul, table, x, table*x))
 	}
 	return p
 }
@@ -117,7 +173,7 @@ func NewDivProblems(table int) problems {
 		return p
 	}
 	for x := 1; x <= mathTableEnd; x++ {
-		p = append(p, NewProblem(fmt.Sprintf("%d / %d", x*table, table), x))
+		p = append(p, NewProblem(modeDiv, x*table, table, x))
 	}
 	return p
 }
@@ -125,11 +181,10 @@ func NewDivProblems(table int) problems {
 func NewAddProblems(digits int) problems {
 	max := pow10(digits)
 
-	// todo this does make dupes, like 1+2 and 2+1, but might not be bad
 	var p problems
 	for a := 1; a < max; a++ {
 		for b := 1; b < max; b++ {
-			p = append(p, problem{question: fmt.Sprintf("%d + %d", a, b), answer: a + b})
+			p = append(p, NewProblem(modeAdd, a, b, a+b))
 		}
 	}
 	return p
@@ -144,7 +199,7 @@ func NewSubProblems(digits int) problems {
 			if b > a {
 				break // Don't do negative answers yet
 			}
-			p = append(p, problem{question: fmt.Sprintf("%d - %d", a, b), answer: a - b})
+			p = append(p, NewProblem(modeSub, a, b, a-b))
 		}
 	}
 	return p
@@ -156,7 +211,7 @@ func NewSubProblems(digits int) problems {
 func (p problems) Random(lastSeen problem) problem {
 	low := -1
 	for _, prob := range p {
-		if prob.question == lastSeen.question {
+		if prob.IsSame(lastSeen) {
 			continue
 		}
 		if low < 0 {
@@ -169,7 +224,7 @@ func (p problems) Random(lastSeen problem) problem {
 	}
 	var candidates problems
 	for _, prob := range p {
-		if prob.question == lastSeen.question {
+		if prob.IsSame(lastSeen) {
 			continue
 		}
 		if prob.correct == low {
@@ -184,7 +239,7 @@ func (p problems) Random(lastSeen problem) problem {
 
 func (p problems) IndexOf(a problem) int {
 	for i, prob := range p {
-		if prob.question == a.question {
+		if prob.IsSame(a) {
 			return i
 		}
 	}
@@ -344,7 +399,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err == nil {
 					if ans == m.prob.answer {
 						m.totalRight++
-						m.rightMap[m.prob.question]++
+						m.rightMap[m.prob.Question()]++
 						m.prob.correct++
 
 						per := float64(m.totalRight%3) / float64(3)
@@ -363,12 +418,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundRight))
 						}
 						cmds = append(cmds, m.levelBar.SetPercent(per))
-						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)), correctBlends)
+						m.feedback = rainbow(style, feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.Question(), m.prob.answer)), correctBlends)
 						// m.feedback = Lolcatize(feedbackCoach(m.coach, fmt.Sprintf("Great job! %s = %d ✅", m.prob.question, m.prob.answer)))
 					} else {
-						m.feedback = rainbow(style, feedbackCoach("dragon-and-cow", fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.question, m.prob.answer)), incorrectBlends)
+						m.feedback = rainbow(style, feedbackCoach("dragon-and-cow", fmt.Sprintf("Nice try! The answer is %s = %d", m.prob.Question(), m.prob.answer)), incorrectBlends)
 						m.totalWrong++
-						m.wrongMap[m.prob.question]++
+						m.wrongMap[m.prob.Question()]++
 						m.prob.wrong++
 						cmds = append(cmds, PlaySoundCmd(m.otoContext, SoundWrong))
 					}
@@ -435,7 +490,7 @@ func (m model) View() string {
 	case screenSplash:
 		o = funMessage(fmt.Sprintf("Welcome, %s!\nLet's play a game :)", m.player), m.windowWidth)
 	case screenPlay:
-		o = "\n" + rainbow(style.Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.question), blends) +
+		o = "\n" + rainbow(style.Bold(true), fmt.Sprintf("Question: %s = ?", m.prob.Question()), blends) +
 			"\n\n" + m.input.View() +
 			"\n\n" + lipgloss.PlaceHorizontal(m.windowWidth, lipgloss.Center, style.Align(lipgloss.Left).Render(m.feedback)) +
 			"\n\n" + rainbow(style.Bold(true), fmt.Sprintf("/// Level %d ", m.level), blends) + m.levelBar.View() +
@@ -480,6 +535,8 @@ func main() {
 	default:
 		panic("forgot to implment problems for new game mode")
 	}
+
+	m.probs = RemoveDupes(m.probs)
 
 	// Uncomment to debug problem generation
 	// for _, p := range m.probs {
